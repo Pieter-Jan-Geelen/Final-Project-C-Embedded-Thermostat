@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <util/delay.h>
+#include <avr/io.h>
 
 // Interrupts
 #include <avr/interrupt.h>
@@ -11,14 +12,17 @@
 #include <buttons.h>
 #include <display.h>
 #include <leds.h>
+#include <sensor.h>
 
 // Finals
 #define MAX_ROOM_NAME_LENGTH 3
-#define MAX_NUMBER_OF_ROOMS 4
+#define MAX_NUMBER_OF_ROOMS 2
 
-#define MAX_ROOM_TEMPERATURE 40
+#define MAX_ROOM_TEMPERATURE 400
 
 #define DEBUG_TIMEOUT 500
+
+#define TEMP_SENSOR PC4
 
 // Array of pointers to the structs
 struct Thermostat **rooms;
@@ -43,8 +47,8 @@ Thermostat struct, has the possibility to scale horizontally ( multiple rooms )
 struct Thermostat
 {
   char roomName[MAX_ROOM_NAME_LENGTH];
-  int minTemp;
-  int maxTemp;
+  double minTemp;
+  double maxTemp;
 };
 
 /*
@@ -109,7 +113,6 @@ void createNewRoom(int min, int max)
   roomCounter ++;
 }
 
-
 /*
 
 Helper function for adjusting the min and max parameters of the existing rooms
@@ -162,6 +165,20 @@ void adjustCurrentRoomTemperature(int increase)
   }
 }
 
+int * formatNumberToDisplay(int num) // example 200
+{
+  int firstDidget = num / 100; // 200 / 100 = 2
+  int secondDidget = ( int ) ( num / 10 ) % 10; // 0
+  int decimalDidget = ( int ) ( num%10 ); // 0
+
+  int *numberArr = malloc(3 * sizeof(int));
+
+  numberArr[0] = firstDidget;
+  numberArr[1] = secondDidget;
+  numberArr[2] = decimalDidget;
+
+  return numberArr;
+}
 
 /*
 
@@ -294,6 +311,7 @@ int main()
 
   initUSART(); 
   initDisplay();
+  initADC();
   initThermostateSystem();
 
   enableAllButtons();
@@ -305,12 +323,11 @@ int main()
 
   // End of initialisation
 
-  createNewRoom(18, 21);
-  createNewRoom(16, 24);
-  createNewRoom(6, 14);
-  createNewRoom(0, 6);
+  createNewRoom(180, 210);
+  createNewRoom(160, 240);
 
   int sensor;
+  //int * numbers;
 
   while (1)
   {
@@ -356,12 +373,16 @@ int main()
     {
       if (selectedTab == 0)
       {
-        writeNumber(rooms[currentRoom]->minTemp);
+        //numbers = formatNumberToDisplay(rooms[currentRoom]->minTemp);
+        
+        writeNumber((rooms[currentRoom]->minTemp / 100), (( int ) ( rooms[currentRoom]->minTemp / 10 ) % 10), (( int ) rooms[currentRoom]->minTemp%10 ));
       }
 
       if (selectedTab == 1)
       {
-        writeNumber(rooms[currentRoom]->maxTemp);
+        //numbers = formatNumberToDisplay(rooms[currentRoom]->maxTemp);
+        
+        writeNumber((rooms[currentRoom]->maxTemp / 100), (( int ) ( rooms[currentRoom]->maxTemp / 10 ) % 10), (( int ) rooms[currentRoom]->maxTemp%10 ));
       }
     }
 

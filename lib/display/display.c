@@ -129,12 +129,11 @@ void writeNumberToSegment(uint8_t segment, uint8_t value) {
 }
 
 //Schrijft getal tussen 0 en 9999 naar de display. Te gebruiken in een lus...
-void writeNumber(int number) {
-  if (number < 0 || number > 9999) return;
-  writeNumberToSegment(0, number / 1000);
-  writeNumberToSegment(1, (number / 100) % 10);
-  writeNumberToSegment(2, (number / 10) % 10);
-  writeNumberToSegment(3, number % 10);
+void writeNumber(int firstNumber, int secondNumber, int decimalNumber) {
+  writeNumberToSegment(0, firstNumber);
+  writeNumberToSegment(1, secondNumber);
+  writeNumberToSegment(2, decimalNumber);
+  writeCharToSegment(3, 'c');
 }
 
 //Schrijft getal tussen 0 en 9999 naar de display en zorgt dat het er een bepaald aantal milliseconden blijft staan.
