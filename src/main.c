@@ -24,6 +24,9 @@
 
 #define TEMP_SENSOR PC4
 
+volatile uint32_t counter = 0;
+volatile uint16_t overflow_count = 0;
+
 // Array of pointers to the structs
 struct Thermostat **rooms;
 
@@ -41,6 +44,9 @@ int selectedTab = 0;
 
 // set this to 1 to display the current temperature measured by the sensor
 int showCurrentTemp = 0;
+
+// The temperature from the sensor
+int sensor;
 
 /*
 
@@ -196,6 +202,44 @@ int* formatNumberToDisplay(int num) {
 
 /*
 
+  handles the timer for the leds
+
+*/
+void initTimer0() {
+    // Set the timer to Normal mode (no PWM, just counting)
+    TCCR0A = 0; // WGM00 = 0 and WGM01 = 0 --> Normal mode
+
+    // Set prescaler to 1024
+    TCCR0B |= _BV(CS02) | _BV(CS00); // CS02 = 1 and CS00 = 1 --> prescaler factor is now 1024
+
+    // Enable overflow interrupt
+    TIMSK0 |= _BV(TOIE0); // overflow interrupt enable
+}
+
+ISR(TIMER0_OVF_vect) {
+    overflow_count++;
+    if (overflow_count >= 61) // 15625 / 256 ≈ 61 
+    {
+      //printString("Interrupt every second\n");
+      counter++;
+      overflow_count = 0;
+
+      sensor = (readADC(4) * 4.22) / 10;
+
+      for (int i = 0; i < roomCounter; i++)
+      {
+        if (sensor * 10 < rooms[i]->minTemp)
+        {
+          turnLedOn(i);
+          continue;
+        }
+        turnDownLed(i);
+      }
+    }
+}
+
+/*
+
 Handle the interrupts coming from the buttons
 
 */
@@ -338,6 +382,7 @@ int main()
   initUSART(); 
   initDisplay();
   initADC();
+  initTimer0();
   initThermostateSystem();
 
   enableAllButtons();
@@ -352,24 +397,10 @@ int main()
   createNewRoom(180, 210);
   createNewRoom(160, 240);
 
-  int sensor;
   int * numbers;
 
   while (1)
   {
-
-    sensor = (readADC(4) * 4.22) / 10;
-
-    for (int i = 0; i < roomCounter; i++)
-    {
-      if (sensor * 10 < rooms[i]->minTemp && !getLedStatus(i))
-      {
-        turnLedOn(i);
-        continue;
-      }
-      turnDownLed(i);
-    }
-
     // Room selector
     if (currentScreen == 0 && !showCurrentTemp)
     {
