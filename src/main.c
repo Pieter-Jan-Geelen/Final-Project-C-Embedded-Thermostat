@@ -39,6 +39,9 @@ int currentRoom = 0;
 // Choose the tab [ 0: MIN; 1: MAX; 2: BACK ]
 int selectedTab = 0;
 
+// set this to 1 to display the current temperature measured by the sensor
+int showCurrentTemp = 0;
+
 /*
 
 Thermostat struct, has the possibility to scale horizontally ( multiple rooms )
@@ -47,8 +50,8 @@ Thermostat struct, has the possibility to scale horizontally ( multiple rooms )
 struct Thermostat
 {
   char roomName[MAX_ROOM_NAME_LENGTH];
-  double minTemp;
-  double maxTemp;
+  int minTemp;
+  int maxTemp;
 };
 
 /*
@@ -117,7 +120,7 @@ void createNewRoom(int min, int max)
 
 Helper function for adjusting the min and max parameters of the existing rooms
 
-@param increase This parameter determines whether or not we want to increase or decrease min / max
+@param increase This parameter determines whether or not we want to increase or decrease min / max (bool)
 @return void
 
 */
@@ -165,19 +168,30 @@ void adjustCurrentRoomTemperature(int increase)
   }
 }
 
-int * formatNumberToDisplay(int num) // example 200
-{
-  int firstDidget = num / 100; // 200 / 100 = 2
-  int secondDidget = ( int ) ( num / 10 ) % 10; // 0
-  int decimalDidget = ( int ) ( num%10 ); // 0
+/*
 
-  int *numberArr = malloc(3 * sizeof(int));
+  This is a helper function to break down a number into three ints so we can display it
+  Don't forget to free the memory when the numbers are no longer needed!
 
-  numberArr[0] = firstDidget;
-  numberArr[1] = secondDidget;
-  numberArr[2] = decimalDidget;
+  @param num Number that you want to break down
+  @return pointer returns a pointer to the array where the three ints are stored
 
-  return numberArr;
+*/
+int* formatNumberToDisplay(int num) {
+    int firstDigit = num / 100; // 263 / 100 = 2
+    int secondDigit = (num / 10) % 10; // (263 / 10) % 10 = 6
+    int decimalDigit = num % 10; // 263 % 10 = 3
+
+    int *pArr = malloc(3 * sizeof(int));
+    if (pArr == NULL) {
+        return NULL;
+    }
+
+    pArr[0] = firstDigit;
+    pArr[1] = secondDigit;
+    pArr[2] = decimalDigit;
+
+    return pArr;
 }
 
 /*
@@ -200,6 +214,12 @@ ISR(PCINT1_vect)
       {
         if (currentRoom == 0)
           return;
+
+        if (showCurrentTemp)
+        {
+          showCurrentTemp = 0;
+          return;
+        }
 
         currentRoom--;
       }
@@ -278,7 +298,13 @@ ISR(PCINT1_vect)
       // Room selector
       if (currentScreen == 0)
       {
-        if (currentRoom+1 >= roomCounter)
+        if (currentRoom+1 >= roomCounter && !showCurrentTemp)
+        {
+          showCurrentTemp = 1;
+          return;
+        }
+
+        if (showCurrentTemp)
           return;
         
         currentRoom++;
@@ -327,16 +353,16 @@ int main()
   createNewRoom(160, 240);
 
   int sensor;
-  //int * numbers;
+  int * numbers;
 
   while (1)
   {
 
-    sensor = 15;
+    sensor = (readADC(4) * 4.22) / 10;
 
     for (int i = 0; i < roomCounter; i++)
     {
-      if (rooms[i]->minTemp > sensor && getLedStatus(i) == 0)
+      if (sensor * 10 < rooms[i]->minTemp && !getLedStatus(i))
       {
         turnLedOn(i);
         continue;
@@ -345,10 +371,20 @@ int main()
     }
 
     // Room selector
-    if (currentScreen == 0)
+    if (currentScreen == 0 && !showCurrentTemp)
     {
       writeCharToSegment(0, 'r');
       writeNumberToSegment(1, currentRoom+1);
+      continue;
+    }
+
+    if (currentScreen == 0 && showCurrentTemp)
+    {
+      numbers = formatNumberToDisplay(sensor * 10);
+
+      writeNumber(numbers[0], numbers[1], numbers[2]);
+      free(numbers);
+      continue;
     }
 
     if (currentScreen == 1)
@@ -356,16 +392,19 @@ int main()
       if (selectedTab == 0)
       {
         writeString("min");
+        continue;
       }
 
       if (selectedTab == 1)
       {
         writeString("max");
+        continue;
       }
 
       if (selectedTab == 2)
       {
         writeString("back");
+        continue;
       }
     }
 
@@ -373,16 +412,20 @@ int main()
     {
       if (selectedTab == 0)
       {
-        //numbers = formatNumberToDisplay(rooms[currentRoom]->minTemp);
+        numbers = formatNumberToDisplay(rooms[currentRoom]->minTemp);
         
-        writeNumber((rooms[currentRoom]->minTemp / 100), (( int ) ( rooms[currentRoom]->minTemp / 10 ) % 10), (( int ) rooms[currentRoom]->minTemp%10 ));
+        writeNumber(numbers[0], numbers[1], numbers[2]);
+        free(numbers);
+        continue;
       }
 
       if (selectedTab == 1)
       {
-        //numbers = formatNumberToDisplay(rooms[currentRoom]->maxTemp);
+        numbers = formatNumberToDisplay(rooms[currentRoom]->maxTemp);
         
-        writeNumber((rooms[currentRoom]->maxTemp / 100), (( int ) ( rooms[currentRoom]->maxTemp / 10 ) % 10), (( int ) rooms[currentRoom]->maxTemp%10 ));
+        writeNumber(numbers[0], numbers[1], numbers[2]);
+        free(numbers);
+        continue;
       }
     }
 
